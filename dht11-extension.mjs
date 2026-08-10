@@ -1,6 +1,8 @@
-// 1. 拡張機能のIDを固定値で定義（すべて小文字・英数字のみが安全です）
+// dht11-extension.mjs の確定版コード
 const EXTENSION_ID = 'dht11extension';
+const EXTENSION_NAME = 'DHT11 温湿度センサー';
 
+// 🔴【最重要】Xcratchのローダーが照合に使用する「クラス側の静的ゲッター」群
 class DHT11Extension {
     constructor(runtime) {
         this.runtime = runtime;
@@ -10,8 +12,8 @@ class DHT11Extension {
 
     getInfo() {
         return {
-            id: EXTENSION_ID, // 2. getInfoが返すID
-            name: 'DHT11 温湿度センサー',
+            id: EXTENSION_ID,
+            name: EXTENSION_NAME,
             blocks: [
                 {
                     opcode: 'getTemperature',
@@ -53,20 +55,17 @@ class DHT11Extension {
         this._temperature = Math.floor(Math.random() * 5) + 20;
         this._humidity = Math.floor(Math.random() * 20) + 50;
     }
-
-    // 3. クラス自体にIDを返すゲッターを持たせる（Xcratchのチェック対策）
-    static get EXTENSION_ID() {
-        return EXTENSION_ID;
-    }
 }
 
-// 4. entry関数を定義
-const entry = function (runtime) {
-    return new DHT11Extension(runtime);
-};
+// 🔴【最重要】Xcratchの仕様に準拠したEntryクラス
+class entry {
+    constructor(runtime) {
+        return new DHT11Extension(runtime);
+    }
+    // エントリーポイントにID情報を静的ゲッターとして持たせる
+    static get EXTENSION_ID() { return EXTENSION_ID; }
+    static get EXTENSION_NAME() { return EXTENSION_NAME; }
+}
 
-// 5. 🔴【最重要】entry関数自体にもIDプロパティを持たせる（これで entry: 'undefined' が解消されます）
-entry.EXTENSION_ID = EXTENSION_ID;
-
-// Xcratchの仕様に合わせてエクスポート
+// Xcratchのモジュールインターフェースに従ってエクスポート
 export { DHT11Extension as blockClass, entry };
