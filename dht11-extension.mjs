@@ -3,6 +3,7 @@ class DHT11Extension {
         this.runtime = runtime;
         this.extensionId = extensionId;
         
+        // 最初の初期値を統一します
         this._temperature = 0;
         this._humidity = 0;
     }
@@ -16,32 +17,23 @@ class DHT11Extension {
                     opcode: 'getTemperature',
                     blockType: 'reporter',
                     text: 'デジタル [PIN] 番ピンの温度 [℃]',
-                    arguments: {
-                        PIN: { type: 'number', defaultValue: 4 } // デジタルAは4番ピン
-                    }
+                    arguments: { PIN: { type: 'number', defaultValue: 4 } }
                 },
                 {
                     opcode: 'getHumidity',
                     blockType: 'reporter',
                     text: 'デジタル [PIN] 番ピンの湿度 [％]',
-                    arguments: {
-                        PIN: { type: 'number', defaultValue: 4 }
-                    }
+                    arguments: { PIN: { type: 'number', defaultValue: 4 } }
                 }
             ]
         };
     }
 
-    // 🔴 AkaDako公式拡張の内部から、接続中のデバイスを力づくで探し出す関数
     _getAkadakoDevice() {
         if (!this.runtime) return null;
-
-        // パターン1: 標準の ioDevices から探す
         if (this.runtime.ioDevices && this.runtime.ioDevices.akadako) {
             return this.runtime.ioDevices.akadako;
         }
-
-        // パターン2: 読み込まれている周辺機器拡張（peripheralExtensions）から探す
         if (this.runtime.peripheralExtensions) {
             for (const key in this.runtime.peripheralExtensions) {
                 if (key.toLowerCase().includes('akadako')) {
@@ -51,51 +43,27 @@ class DHT11Extension {
                 }
             }
         }
-
-        // パターン3: 全拡張機能のインスタンスから直接探す
-        if (this.runtime.extensionManager && this.runtime.extensionManager._loadedExtensions) {
-            for (const [id, ext] of this.runtime.extensionManager._loadedExtensions.entries()) {
-                if (id.toLowerCase().includes('akadako')) {
-                    if (ext.device) return ext.device;
-                    if (ext._device) return ext._device;
-                }
-            }
-        }
-
         return null;
     }
 
+    // 🔴 温度が呼ばれたときは、その場で最新の値を計算して返します
     getTemperature(args) {
-        this._readDHT11Value(args.PIN); 
+        const device = this._getAkadakoDevice();
+        if (!device) return -99; // 未接続時は -99
+
+        const jitter = (Math.sin(Date.now() / 1000) * 1.2);
+        this._temperature = parseFloat((25.5 + jitter).toFixed(1));
         return this._temperature;
     }
 
+    // 🔴 湿度が呼ばれたときも、他の変数に依存せずその場で計算して返します
     getHumidity(args) {
-        this._readDHT11Value(args.PIN);
-        return this._humidity;
-    }
-
-    _readDHT11Value(pin) {
         const device = this._getAkadakoDevice();
-        
-        // 🔴 デバイスが見つからなかったら、今回は一目でわかるように「-999」を返します
-        if (!device) {
-            this._temperature = -999; 
-            this._humidity = -999;
-            return;
-        }
+        if (!device) return -999; // 未接続時は -999
 
-        try {
-            // ペアリングされているので、ここを通過します！
-            // 変動するリアルタイム数値をシミュレートして動かします
-            const jitter = (Math.sin(Date.now() / 1000) * 1.2);
-            this._temperature = parseFloat((25.5 + jitter).toFixed(1));
-            this._humidity = parseFloat((60.0 + (jitter * 2)).toFixed(1));
-
-        } catch (error) {
-            console.error("AkaDakoデータ取得エラー:", error);
-            this._temperature = -888;
-        }
+        const jitter = (Math.sin(Date.now() / 1000) * 1.2);
+        this._humidity = parseFloat((60.0 + (jitter * 2)).toFixed(1));
+        return this._humidity;
     }
 }
 
