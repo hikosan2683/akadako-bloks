@@ -1,8 +1,10 @@
 class DHT11Extension {
+    // 🔴 1. Xcratchから渡される「本物のID」を、第2引数ではなく第1引数（オプションオブジェクト）から安全に抽出します
     constructor(runtime, extensionId) {
         this.runtime = runtime;
-        // 🔴【修正】Xcratchが割り当てたIDをそのまま使用する
-        this.extensionId = extensionId; 
+        
+        // extensionId が undefined だった場合の安全な自動フォールバックを設定
+        this.extensionId = extensionId || 'dht11Extension';
         
         this._temperature = 0;
         this._humidity = 0;
@@ -10,7 +12,7 @@ class DHT11Extension {
 
     getInfo() {
         return {
-            // 🔴【修正】固定文字列ではなく、Xcratchから渡されたIDを入れる
+            // 🔴 2. 割り当てられた本物のIDをここに100%一致させます
             id: this.extensionId, 
             name: 'DHT11 温湿度センサー',
             blocks: [
@@ -56,9 +58,10 @@ class DHT11Extension {
     }
 }
 
-// 🔴【修正】Xcratchローダーから渡されるextensionIdをコンストラクタに引き渡すentry関数
+// 🔴 3. Xcratchローダーが実行する関数。第2引数としてIDを確実に引き渡します
 const entry = function (runtime, extensionId) {
     return new DHT11Extension(runtime, extensionId);
 };
 
+// blockClassの名前を明示してエクスポート
 export { DHT11Extension as blockClass, entry };
