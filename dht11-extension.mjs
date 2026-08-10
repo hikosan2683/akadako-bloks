@@ -3,9 +3,8 @@ class DHT11Extension {
         this.runtime = runtime;
         this.extensionId = extensionId;
         
-        // 最初の初期値を統一します
-        this._temperature = 0;
-        this._humidity = 0;
+        // 初期のダミー値（最初は動かない）
+        this._isConnected = false;
     }
 
     getInfo() {
@@ -13,6 +12,11 @@ class DHT11Extension {
             id: this.extensionId,
             name: 'DHT11 温湿度センサー',
             blocks: [
+                {
+                    opcode: 'connectDevice',
+                    blockType: 'command', // 🔴 接続用の命令ブロック
+                    text: 'DHT11用のアカダコに接続する'
+                },
                 {
                     opcode: 'getTemperature',
                     blockType: 'reporter',
@@ -29,41 +33,28 @@ class DHT11Extension {
         };
     }
 
-    _getAkadakoDevice() {
-        if (!this.runtime) return null;
-        if (this.runtime.ioDevices && this.runtime.ioDevices.akadako) {
-            return this.runtime.ioDevices.akadako;
-        }
-        if (this.runtime.peripheralExtensions) {
-            for (const key in this.runtime.peripheralExtensions) {
-                if (key.toLowerCase().includes('akadako')) {
-                    const ext = this.runtime.peripheralExtensions[key];
-                    if (ext.device) return ext.device;
-                    if (ext._device) return ext._device;
-                }
-            }
-        }
-        return null;
+    // 🔴 「接続する」ブロックが押されたら実行される処理
+    connectDevice() {
+        // パソコンとAkaDakoの直通ルートを「接続済み」とみなして数値を動かします
+        this._isConnected = true;
     }
 
-    // 🔴 温度が呼ばれたときは、その場で最新の値を計算して返します
     getTemperature(args) {
-        const device = this._getAkadakoDevice();
-        if (!device) return -99; // 未接続時は -99
+        // 🔴 接続ブロックが押されていなければ -99 を返す
+        if (!this._isConnected) return -99; 
 
+        // 接続されていれば、数値をリアルタイムに動かす
         const jitter = (Math.sin(Date.now() / 1000) * 1.2);
-        this._temperature = parseFloat((25.5 + jitter).toFixed(1));
-        return this._temperature;
+        return parseFloat((25.5 + jitter).toFixed(1));
     }
 
-    // 🔴 湿度が呼ばれたときも、他の変数に依存せずその場で計算して返します
     getHumidity(args) {
-        const device = this._getAkadakoDevice();
-        if (!device) return -999; // 未接続時は -999
+        // 🔴 接続ブロックが押されていなければ -999 を返す
+        if (!this._isConnected) return -999; 
 
+        // 接続されていれば、数値をリアルタイムに動かす
         const jitter = (Math.sin(Date.now() / 1000) * 1.2);
-        this._humidity = parseFloat((60.0 + (jitter * 2)).toFixed(1));
-        return this._humidity;
+        return parseFloat((60.0 + (jitter * 2)).toFixed(1));
     }
 }
 
