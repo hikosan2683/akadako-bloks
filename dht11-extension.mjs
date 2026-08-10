@@ -1,3 +1,7 @@
+// 拡張機能の一識別子と名前を定義
+const EXTENSION_ID = 'dht11Extension';
+const EXTENSION_NAME = 'DHT11 温湿度センサー';
+
 class DHT11Extension {
     constructor(runtime) {
         this.runtime = runtime;
@@ -7,8 +11,8 @@ class DHT11Extension {
 
     getInfo() {
         return {
-            id: 'dht11Extension',
-            name: 'DHT11 温湿度センサー',
+            id: EXTENSION_ID,
+            name: EXTENSION_NAME,
             blocks: [
                 {
                     opcode: 'getTemperature',
@@ -50,8 +54,15 @@ class DHT11Extension {
         this._temperature = Math.floor(Math.random() * 5) + 20;
         this._humidity = Math.floor(Math.random() * 20) + 50;
     }
+
+    static get EXTENSION_ID() { return EXTENSION_ID; }
+    static get EXTENSION_NAME() { return EXTENSION_NAME; }
 }
 
-// 🔴【ここを修正】Xcratchのローダーが認識できる正しい登録用オブジェクトのエクスポート
-const blockClass = DHT11Extension;
-export { blockClass };
+// 🔴【重要】Xcratchが必要とする entry オブジェクトの定義
+const entry = function (runtime) {
+    return new DHT11Extension(runtime);
+};
+
+// blockClass と entry の両方を必ずエクスポートする
+export { DHT11Extension as blockClass, entry };
