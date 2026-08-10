@@ -2,7 +2,7 @@
 class DHT11Extension {
     constructor(runtime) {
         this.runtime = runtime;
-        // 温湿度のダミー初期値（AkaDakoとのシリアル通信から取得した値をここに格納する）
+        // 温湿度のダミー初期値
         this._temperature = 0;
         this._humidity = 0;
     }
@@ -42,9 +42,6 @@ class DHT11Extension {
     // 温度を返す関数
     getTemperature(args) {
         const pin = args.PIN;
-        // TODO: ここでAkaDakoのWebSerial経由でピンからデータを取得する処理を呼ぶ
-        // 現状はポーリング不可避のため、定期実行されるバックグラウンド処理から
-        // 最新のキャッシュ値を返すように実装するのが現実的です。
         this._readDHT11Mock(pin); 
         return this._temperature;
     }
@@ -58,13 +55,14 @@ class DHT11Extension {
 
     // 通信実験用の仮データ生成（動作確認用）
     _readDHT11Mock(pin) {
-        // 本来はAkaDakoの通信インスタンスを叩く
-        // 例: const akadako = this.runtime.ioDevices.akadako; 
-        // 現時点では、簡易的に20〜25度のランダム値を返します
         this._temperature = Math.floor(Math.random() * 5) + 20;
         this._humidity = Math.floor(Math.random() * 20) + 50;
     }
 }
 
-// Xcratchにモジュールとしてエクスポート
-export default DHT11Extension;
+// 🔴【ここを修正】Xcratchに拡張機能クラスを登録するおまじない
+(function() {
+    var extensionInstance = new DHT11Extension(window.vm.runtime);
+    var serviceName = window.vm.extensionManager._registerInternalExtension(extensionInstance);
+    window.vm.extensionManager._loadedExtensions.set(extensionInstance.getInfo().id, serviceName);
+})();
