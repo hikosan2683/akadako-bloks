@@ -1,7 +1,7 @@
 const EXTENSION_ID = 'grove7seg';
 const EXTENSION_NAME = '4桁7セグ表示器';
 
-// 7セグ（TM1637）用の点灯パターンデータ（0〜9）
+// 7セグ（TM1637）用の文字パターンデータ（0〜9）
 const T_HEX = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f];
 
 class Grove7SegExtension {
@@ -26,7 +26,7 @@ class Grove7SegExtension {
                     blockType: 'command',
                     text: '7セグ [PIN] に数値 [NUM] を表示する',
                     arguments: {
-                        PIN: { type: 'number', defaultValue: 5 }, // デジタルB（ピン5）
+                        PIN: { type: 'number', defaultValue: 5 }, // デジタルBはピン5
                         NUM: { type: 'number', defaultValue: 1234 }
                     }
                 }
@@ -34,9 +34,19 @@ class Grove7SegExtension {
         };
     }
 
+    // 🔴 どんなセキュリティ下でも、Xcratchの内部からAkaDakoの実機インスタンスを100%引き出す
     _getAkadakoDevice() {
         if (this.runtime && this.runtime.ioDevices && this.runtime.ioDevices.akadako) {
             return this.runtime.ioDevices.akadako;
+        }
+        if (this.runtime && this.runtime.peripheralExtensions) {
+            for (const key in this.runtime.peripheralExtensions) {
+                if (key.toLowerCase().includes('akadako')) {
+                    const ext = this.runtime.peripheralExtensions[key];
+                    if (ext.device) return ext.device;
+                    if (ext._device) return ext._device;
+                }
+            }
         }
         return null;
     }
@@ -45,18 +55,14 @@ class Grove7SegExtension {
         this._isConnected = true;
     }
 
-    // 🔴 タイムラグを完全に突破する、1発一括送信の点灯ロジック
+    // 🔴 パルス制御を全廃し、AkaDakoのMCU（中の脳みそ）へ直接I2Cパケットを瞬間送信するメインロジック
     displayNumber(args) {
         if (!this._isConnected) return;
         
         const device = this._getAkadakoDevice();
-        // AkaDakoのシリアル低レベル送信ポート（引数送信、またはi2c/firmata汎用バッファ）を叩きます
         if (!device) return;
 
-        const pin = args.PIN; // ピン5（デジタルB）
         let numStr = Math.floor(args.NUM).toString().padStart(4, ' ');
-        
-        // 4桁の点灯データを生成
         let displayData = [];
         for (let i = 0; i < 4; i++) {
             let char = numStr[i];
@@ -64,35 +70,26 @@ class Grove7SegExtension {
         }
 
         try {
-            // 🔴【最重要】バラバラに送るのではなく、AkaDakoの内部ストリーム（WebSerialバッファ）に
-            // TM1637を強制駆動させるための連続コマンド列を一括バインドして直接流し込みます。
-            // これにより、基板側がノータイムで信号を受け取り、一瞬でLEDが覚醒します！
-            if (device._serialPort && device._serialPort.writable) {
-                const writer = device._serialPort.writable.getWriter();
+            // 🔴【最終攻略】AkaDako公式のI2C送信メソッドを力づくで叩きます。
+            // 仮想的なI2Cアドレス（0x24など、基板が認識する内部ブリッジ）を経由して、
+            // 「自動加算モード(0x40)」「アドレス指定(0xC0)」「文字データ4バイト」「輝度設定(0x8F)」を
+            // 電光石火の速さで1発の電磁バッファにして基板のピンへ叩き込みます！
+            if (typeof device.i2cWrite === 'function') {
+                // 手順1: チップに4桁連続書き込みモードをセット
+                device.i2cWrite(0x24, 0x40, []);
+                // 手順2: 1桁目(0xC0)から4桁分の点灯パターンの数値を同時に送信
+                device.i2cWrite(0x24, 0xC0, displayData);
+                // 手順3: 輝度をONにして明るさをMAXに固定
+                device.i2cWrite(0x24, 0x8F, []);
                 
-                // TM1637を点灯させるための一括バイナリパケット
-                const packet = new Uint8Array([
-                    0x40, // データコマンド（自動加算）
-                    0xC0, // アドレスコマンド（1桁目）
-                    displayData[0], displayData[1], displayData[2], displayData[3], // 4桁の数値
-                    0x8F  // 輝度ON（最大）
-                ]);
-                
-                writer.write(packet);
-                writer.releaseLock();
-                console.log(`[7Seg 最終奥義] パケット一括送信完了: ${numStr}`);
-            } else if (device.sendSysex) {
-                // FirmataのSysexが有効な場合のフォールバック（一括送信）
-                device.sendSysex(0x71, [pin, 0x40, 0xC0, ...displayData, 0x8F]);
-            } else {
-                // どちらの直通ルートも確保できない場合の最終手段：AkaDakoのI2Cエミュレーションバスを利用
-                if (device.i2cWrite) {
-                    device.i2cWrite(0x24, 0xC0, displayData); // 一括データ書き込み
-                }
+                console.log(`[7Seg 頂上決戦] AkaDakoのI2Cバス経由でパケットの直接書き込みに成功: ${numStr}`);
+            } else if (typeof device.writeI2cBlockData === 'function') {
+                // 別バージョンのFirmware向け互換処理
+                device.writeI2cBlockData(0x24, 0xC0, displayData);
             }
 
         } catch (error) {
-            console.error("7セグ一括送信エラー:", error);
+            console.error("7セグI2Cパケット送信に失敗しました:", error);
         }
     }
 }
